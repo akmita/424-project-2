@@ -6,12 +6,12 @@ library(lubridate)
 library(sqldf)
 library(ggplot2)
 
+
+source("./globals.r", local = FALSE)
 source("./dataParsers.r", local = FALSE)
 source("./plotHelpers.r", local = FALSE)  
 
-# INPUTS FROM LEAFLET MAP - this will be hard, but getting the inputs from the leaftlet map, 
-# on click of each station might look something like this
-# https://stackoverflow.com/questions/45700647/select-input-for-leaflet-in-shiny
+
 
 # TABLE CLICK EVENTS EXPLAINED
 # https://stackoverflow.com/questions/47371525/shiny-renderdatatable-table-cell-clicked
@@ -39,44 +39,85 @@ if (!exists("rides") || !exists("stops")) {
 ################################
 
 ui <- fluidPage(
-  wellPanel(
-    # MAIN BAR CHART
+    
+    #
+    # LEFT PANEL   
+    #
     column(9, 
-      conditionalPanel(
-        condition = "input.visType == 'bar'",
-        plotOutput("rides_per_day"),
+      # MAIN BAR CHART
+      wellPanel(
+        tabsetPanel(
+          id="visType",
+          tabPanel("Bar Graph", id="bar", plotOutput("rides_per_day")),
+          tabPanel("Table", id="table", DT::dataTableOutput("rides_per_day_table")),
+        )
       ),
-      conditionalPanel(
-        condition = "input.visType == 'table'",
-        DT::dataTableOutput("rides_per_day_table"),
+      
+      wellPanel( 
+        fluidRow(
+          # CONTROL PANEL
+          column(2, 
+                 # DATE PICKER
+                 tabsetPanel(
+                   id="datePicker_tab",
+                   tabPanel("Single Day",
+                      column(12, dateInput("datepicker", "Date:", value = "2021-08-23", min = minDate, max = maxDate)),
+                      column(8, actionButton("prev_day", "Prev Day")),
+                      column(2, actionButton("next_day", "Next Day")),
+                   ),
+                   tabPanel("Date Range",
+                     column(12,
+                         dateRangeInput("daterange3", "Date range:",
+                                        start  = "2001-01-01",
+                                        end    = "2010-12-31",
+                                        min    = minDate,
+                                        max    = maxDate), 
+                     ),  
+                   ),
+                 ),
+                 
+                 hr(),
+                 # BAR/TABLE SORTER
+                 column(12, radioButtons("mainBarSort", "Sort Stations Chart",
+                                         c("Alphabetical" = "alpha",
+                                           "Ascending" = "min",
+                                           "Descending" = "max")), style=paddingTop),
+          ),
+          # STATION TABLE 
+          column(5, DT::dataTableOutput("mytable")), 
+          # STATION MAP
+          column(5, leafletOutput("mymap")), 
+        )
       ),
     ),
-    # PARTICULAR STATION CHARTS
-    column(3, DT::dataTableOutput("rides_per_year_tab"))
-  ),
-  
-  
-  fluidRow(
-    # CONTROL PANEL
-    column(2, 
-           # DATE PICKER
-           column(12, dateInput("datepicker", "Date:", value = "2021-08-23", min = "2001-01-01", max = "2021-11-30")),
-           column(6, actionButton("prev_day", "Prev Day")),
-           column(6, actionButton("next_day", "Next Day")),
-           # BAR/TABLE SORTER
-           column(12, radioButtons("mainBarSort", "Sort Stations Chart",
-                  c("Alphabetical" = "alpha",
-                    "Ascending" = "min",
-                    "Descending" = "max"))),
-           column(12, radioButtons("visType", "Select View For Main (Stations) Data",
-                  c("Bar" = "bar",
-                    "Table" = "table"))),
+    
+    
+    #
+    # RIGHT PANEL - DETAILS RIDE DATA (Project 1)
+    #
+    column(3, 
+      wellPanel(
+        h3(textOutput("currentStationSelected")),
+        fluidRow(
+          # CHARTS
+          tabsetPanel(id="tab_details", type = "tabs",
+            tabPanel("Table", column(12, DT::dataTableOutput("rides_per_year_tab")), style=paddingTop,),
+            tabPanel("Bar Graph", column(12, plotOutput("rides_per_year_bar")))
+          ),
+          # CONTROL PANEL # 2
+          column(12, 
+                 sliderInput(
+                   inputId = "details_year",
+                   label = "Choose a year",
+                   value = 2021, min = 2001, max = 2021, ticks = FALSE),
+                 radioButtons(
+                   inputId = "details_graphType",
+                   label = "Choose the bar graph to show",
+                   choices = graphChoices),
+          ),
+        )
+      )
     ),
-    # STATION TABLE/BAR  -- == TODO == -- 
-    column(3, DT::dataTableOutput("mytable")), 
-    # STATION MAP
-    column(5, leafletOutput("mymap")),   
-  )
 )
 
 
@@ -86,7 +127,7 @@ ui <- fluidPage(
 ################################
 
 server <- function(input, output, session) {
-  selectedStopID <- reactiveVal(0)
+  selectedStop <- reactiveVal(stops[1,])
   
   #
   # Print station map
@@ -115,10 +156,13 @@ server <- function(input, output, session) {
   #
   # map marker on-click 
   #
-  observeEvent(input$mymap_marker_click, { # 
+  observeEvent(input$mymap_marker_click, { 
     clickEvent <- input$mymap_marker_click
     print("clicked on map marker")
-    selectedStopID(findStationIDByCoords(stops, clickEvent$lng, clickEvent$lat))
+    selectedStop(findStationByCoords(stops, clickEvent$lng, clickEvent$lat))
+    print(paste("found:", selectedStop()))
+    
+    print(input$tab_details)
   })
   
   
@@ -134,10 +178,11 @@ server <- function(input, output, session) {
   # rides/day vs stations bar graph  OR  table
   # 
   output$rides_per_day <- renderPlot({
-    getMainBarGraph(rides, input$datepicker, input$mainBarSort, input$visType)
+    getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Bar Graph")
   })
-  output$rides_per_day_table <- DT::renderDataTable(
-    getMainBarGraph(rides, input$datepicker, input$mainBarSort, input$visType)
+  output$rides_per_day_table <- DT::renderDT(
+    getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Table"),
+    options = list(lengthChange = FALSE)
   )
   
   # 
@@ -145,7 +190,7 @@ server <- function(input, output, session) {
   # 
   observeEvent(input$prev_day, {
     print("prev day")
-    updateDateInput(session, "datepicker", value=input$datepicker-1)
+    updateDateInput(session, "datepicker", value=input$datepicker-1, )
   })
   observeEvent(input$next_day, {
     print("next day")
@@ -154,10 +199,25 @@ server <- function(input, output, session) {
   
   
   #
-  # project 1 visuaizations - yearly, monthly, daily, day-of-the-week
+  # project 1 visuaizations - yearly, monthly, daily, day-of-the-week - table and bar
   #
-  output$rides_per_year_tab <- DT::renderDataTable(filterByStationName(rides, selectedStopID()))
+  # output$rides_per_year_tab <- DT::renderDataTable(filterByStationName(rides, selectedStopID())) 
+  output$rides_per_year_tab <- DT::renderDataTable(getTable(
+    input$details_graphType, 
+    input$details_year,
+    "<location/title PLACEHOLDER TABLE>",
+    filterByStationName(rides, selectedStop()$MAP_ID)))
   
+  output$rides_per_year_bar <- renderPlot({
+    createBarGraph(
+      "<location/title PLACEHOLDER BAR GRAPH>", 
+      input$details_graphType, 
+      input$details_year, 
+      filterByStationName(rides, selectedStop()$MAP_ID))  
+  })
+  
+  # currently selected station
+  output$currentStationSelected <- renderText({ paste(selectedStop()$STATION_NAME, "Station - ", input$details_graphType) })
 }
 
 

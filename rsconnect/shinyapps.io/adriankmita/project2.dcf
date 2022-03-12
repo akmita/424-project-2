@@ -5,10 +5,10 @@ account: adriankmita
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5829407
-bundleId: 5674198
+bundleId: 5676166
 url: https://adriankmita.shinyapps.io/project2/
-when: 1647055819.17167
-lastSyncTime: 1647055819.17167
+when: 1647119375.70345
+lastSyncTime: 1647119375.70345
 asMultiple: FALSE
 asStatic: FALSE
 ignoredFiles: .ipynb_checkpoints/Untitled-checkpoint.ipynb|.RData|notes.txt|playground.r|Untitled.ipynb
