@@ -71,6 +71,31 @@ getActiveStopsList = function(rides, date, dataDestination) {
 }
 
 
+#
+# filters rides data based on the station ID
+#
+filterByStationName = function(rides, ID) {
+  print(paste("filtering by station id: ", ID))
+  return(rides[rides$station_id == ID, ])
+}
+
+
+
+#
+# we use the smaller stops dataset to get a matching stationID
+#
+findStationIDByCoords = function(stops, lng, lat) {
+  matchingStation <- stops[stops$lng == lng & stops$lat == lat, ]
+    
+  if (nrow(matchingStation) > 0) {
+    print("valid station id")
+    matchingStation[1,"MAP_ID"] # map id is the same as station_id  
+  }
+  else {
+    print("invalid station id")
+  }
+}
+
 
 # -------------------------------------------------------------
 #

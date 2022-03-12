@@ -39,17 +39,22 @@ if (!exists("rides") || !exists("stops")) {
 ################################
 
 ui <- fluidPage(
-  # MAIN BAR CHART
-  column(9, wellPanel(
-    conditionalPanel(
-      condition = "input.visType == 'bar'",
-      plotOutput("rides_per_day"),
+  wellPanel(
+    # MAIN BAR CHART
+    column(9, 
+      conditionalPanel(
+        condition = "input.visType == 'bar'",
+        plotOutput("rides_per_day"),
+      ),
+      conditionalPanel(
+        condition = "input.visType == 'table'",
+        DT::dataTableOutput("rides_per_day_table"),
+      ),
     ),
-    conditionalPanel(
-      condition = "input.visType == 'table'",
-      DT::dataTableOutput("rides_per_day_table"),
-    ),
-  )),
+    # PARTICULAR STATION CHARTS
+    column(3, DT::dataTableOutput("rides_per_year_tab"))
+  ),
+  
   
   fluidRow(
     # CONTROL PANEL
@@ -81,6 +86,7 @@ ui <- fluidPage(
 ################################
 
 server <- function(input, output, session) {
+  selectedStopID <- reactiveVal(0)
   
   #
   # Print station map
@@ -109,12 +115,10 @@ server <- function(input, output, session) {
   #
   # map marker on-click 
   #
-  observeEvent(input$mymap_marker_click, { # update the map markers and view on map clicks
-    
+  observeEvent(input$mymap_marker_click, { # 
     clickEvent <- input$mymap_marker_click
-    
     print("clicked on map marker")
-    print(clickEvent)
+    selectedStopID(findStationIDByCoords(stops, clickEvent$lng, clickEvent$lat))
   })
   
   
@@ -149,6 +153,10 @@ server <- function(input, output, session) {
   })
   
   
+  #
+  # project 1 visuaizations - yearly, monthly, daily, day-of-the-week
+  #
+  output$rides_per_year_tab <- DT::renderDataTable(filterByStationName(rides, selectedStopID()))
   
 }
 
