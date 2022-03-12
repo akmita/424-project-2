@@ -1,79 +1,169 @@
 library(leaflet)
 library(shiny)
+library(stringr)
+library(DT)
+library(lubridate)
+library(sqldf)
+library(ggplot2)
 
-# SIMPLE LEAFLET EXAMPLE
-# m <- leaflet() %>%
-#   addTiles() %>%  # Add default OpenStreetMap map tiles
-#   addMarkers(lng=174.768, lat=-36.852, popup="The birthplace of R")
-# m 
+source("./dataParsers.r", local = FALSE)
+source("./plotHelpers.r", local = FALSE)  
 
+# INPUTS FROM LEAFLET MAP - this will be hard, but getting the inputs from the leaftlet map, 
+# on click of each station might look something like this
+# https://stackoverflow.com/questions/45700647/select-input-for-leaflet-in-shiny
 
-# m <- leaflet()
-# m <- addTiles(m)
-# m <- addMarkers(m, lng=-87.772, lat=41.916675, popup="The birthplace of R")
-# 
-# print(m)
-# 
-
-
-r_colors <- rgb(t(col2rgb(colors()) / 255))
-names(r_colors) <- colors()
+# TABLE CLICK EVENTS EXPLAINED
+# https://stackoverflow.com/questions/47371525/shiny-renderdatatable-table-cell-clicked
 
 
+################################
+#            INIT              #
+################################
 
-ui <- fluidPage(
-  leafletOutput("mymap"),
-  p(),
-  actionButton("recalc", "New points")
-)
-
-
-
-server <- function(input, output, session) {
-  
-  x <- rnorm(40) * 2 + 13
-  y <- rnorm(40) + 48
-  xything <- cbind(x, y)
-  
-  print(x)
-  print(y)
-  print(xything)
-  
-  points <- eventReactive(input$recalc, {
-    xything
-  }, ignoreNULL = FALSE)
-  
-  
-  
-  output$mymap <- renderLeaflet({ 
-    
-    # print(points())
-    
-    
-    #
-    # ADRIAN, restart the app and print some more stufff, figure out how to input actual world coordinates  
-    #
-    # I think you do it like this: https://stackoverflow.com/questions/69412282/leaflet-plot-with-gps-coordinates-in-r
-    
-    
-    # DEMO
-    # 
-    # m <- leaflet() %>%
-    #   addProviderTiles(providers$Stamen.TonerLite,
-    #                    options = providerTileOptions(noWrap = TRUE)
-    #   ) %>%
-    #   addMarkers(data = points())
-    
-    
-    leaflet(df) %>% addTiles() %>%
-      addCircleMarkers(lng = ~Lon, lat = ~Lat, 
-                       popup = ~Place)
-    
-  })
+# CREATE DATA FRAMES
+if (!exists("rides") || !exists("stops")) {
+  stops <- getStopData()
+  stops <- stops[!duplicated(stops$MAP_ID),]
+  rides <- getridesData()
+  # merge coordinate data with rides data
+  rides <- sqldf("SELECT station_id, stationname, date, daytype, rides, newDate, year, month, day, s.lng, s.lat
+                FROM stops s
+                LEFT JOIN rides r ON s.MAP_ID = r.station_id")
 }
 
 
 
-# START SERVER
+################################
+#            UI                #
+################################
+
+ui <- fluidPage(
+  # MAIN BAR CHART
+  column(9, wellPanel(
+    conditionalPanel(
+      condition = "input.visType == 'bar'",
+      plotOutput("rides_per_day"),
+    ),
+    conditionalPanel(
+      condition = "input.visType == 'table'",
+      DT::dataTableOutput("rides_per_day_table"),
+    ),
+  )),
+  
+  fluidRow(
+    # CONTROL PANEL
+    column(2, 
+           # DATE PICKER
+           column(12, dateInput("datepicker", "Date:", value = "2021-08-23", min = "2001-01-01", max = "2021-11-30")),
+           column(6, actionButton("prev_day", "Prev Day")),
+           column(6, actionButton("next_day", "Next Day")),
+           # BAR/TABLE SORTER
+           column(12, radioButtons("mainBarSort", "Sort Stations Chart",
+                  c("Alphabetical" = "alpha",
+                    "Ascending" = "min",
+                    "Descending" = "max"))),
+           column(12, radioButtons("visType", "Select View For Main (Stations) Data",
+                  c("Bar" = "bar",
+                    "Table" = "table"))),
+    ),
+    # STATION TABLE/BAR  -- == TODO == -- 
+    column(3, DT::dataTableOutput("mytable")), 
+    # STATION MAP
+    column(5, leafletOutput("mymap")),   
+  )
+)
+
+
+
+################################
+#         SERVER               #
+################################
+
+server <- function(input, output, session) {
+  
+  #
+  # Print station map
+  # 
+  output$mymap <- renderLeaflet({ 
+    
+    activeStops <- getActiveStopsList(rides, input$datepicker, "map")
+    
+    m <- leaflet(activeStops) %>% 
+      addTiles() %>%
+      # different map backgrounds
+      addTiles(group = "OSM (default)") %>%
+      addProviderTiles(providers$Esri.WorldStreetMap, group = "World Street Map") %>%
+      addProviderTiles(providers$Stamen.TonerLite, group = "Toner") %>%
+      addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") %>%
+      # add data points
+      addCircleMarkers(lng = activeStops$lng, lat = activeStops$lat, popup = activeStops$stationname) %>%
+      # add controls
+      addLayersControl(
+        baseGroups = c("OSM (default)", "World Street Map", "Satellite", "Toner"),
+        options = layersControlOptions(collapsed = FALSE)
+      )
+  })
+  
+  
+  #
+  # map marker on-click 
+  #
+  observeEvent(input$mymap_marker_click, { # update the map markers and view on map clicks
+    
+    clickEvent <- input$mymap_marker_click
+    
+    print("clicked on map marker")
+    print(clickEvent)
+  })
+  
+  
+  #
+  # list of all stations
+  #
+  output$mytable = DT::renderDataTable({
+    getActiveStopsList(rides, input$datepicker, "table")
+  })
+  
+  
+  #
+  # rides/day vs stations bar graph  OR  table
+  # 
+  output$rides_per_day <- renderPlot({
+    getMainBarGraph(rides, input$datepicker, input$mainBarSort, input$visType)
+  })
+  output$rides_per_day_table <- DT::renderDataTable(
+    getMainBarGraph(rides, input$datepicker, input$mainBarSort, input$visType)
+  )
+  
+  # 
+  # prev/next day
+  # 
+  observeEvent(input$prev_day, {
+    print("prev day")
+    updateDateInput(session, "datepicker", value=input$datepicker-1)
+  })
+  observeEvent(input$next_day, {
+    print("next day")
+    updateDateInput(session, "datepicker", value=input$datepicker+1)
+  })
+  
+  
+  
+}
+
+
+# ------------------- START SERVER ----------------- #
 shinyApp(ui, server)
+# -------------------------------------------------- #
+
+
+
+
+
+
+
+
+
+
 

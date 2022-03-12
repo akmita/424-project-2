@@ -1,0 +1,14 @@
+name: project_2
+title: project_2
+username:
+account: adriankmita
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5829178
+bundleId: 5669262
+url: https://adriankmita.shinyapps.io/project_2/
+when: 1646964661.65517
+lastSyncTime: 1646964661.65517
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .ipynb_checkpoints/Untitled-checkpoint.ipynb|.RData|notes.txt|playground.r|Untitled.ipynb
