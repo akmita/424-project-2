@@ -67,7 +67,7 @@ ui <- fluidPage(
                    ),
                    tabPanel("Date Range",
                      column(12,
-                         dateRangeInput("daterange3", "Date range:",
+                         dateRangeInput("daterange", "Date range:",
                                         start  = "2001-01-01",
                                         end    = "2010-12-31",
                                         min    = minDate,
@@ -178,12 +178,15 @@ server <- function(input, output, session) {
   # rides/day vs stations bar graph  OR  table
   # 
   output$rides_per_day <- renderPlot({
-    getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Bar Graph")
+    print("graphing main bar")
+    getMainBarGraph(rides, input$mainBarSort, "Bar Graph", input$datePicker_tab, input$datepicker, input$daterange)
+    # getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Bar Graph")
   })
-  output$rides_per_day_table <- DT::renderDT(
-    getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Table"),
-    options = list(lengthChange = FALSE)
-  )
+  output$rides_per_day_table <- DT::renderDT({
+    print("graphing main table")
+    getMainBarGraph(rides, input$mainBarSort, "Table", input$datePicker_tab, input$datepicker, input$daterange)
+    # getMainBarGraph(rides, input$datepicker, input$mainBarSort, "Table")
+  })
   
   # 
   # prev/next day

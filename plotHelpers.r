@@ -3,10 +3,23 @@
 #
 
 
-getMainBarGraph = function(D, date, order, visType) {
-
-  D_ <- orderBy(filterByDate(D, date), order) 
-
+getMainBarGraph = function(D, order, visType, dateInputMethod, date=NULL, dateRange=NULL) {
+  
+  # date range or single date + ordering
+  if (dateInputMethod == "Single Day") {
+    print("selected single day")
+    D_ <- orderBy(filterByDate(D, date), order) 
+    # TODO fix label
+  }
+  else if (dateInputMethod == "Date Range") {
+    print("selected date range")
+    D_ <- orderBy(filterByDate(D, dateRange[1], dateRange[2]), order)
+    # TODO fix label
+  }
+  else {
+    print(paste("ERROR invalid date input: ", dateInputMethod))
+  }
+  
   # prevent ggplot from sorting automatically
   D_$stationname <- factor(D_$stationname, levels = D_$stationname)
   
@@ -16,7 +29,7 @@ getMainBarGraph = function(D, date, order, visType) {
       aes(x=stationname, y=rides)) 
      + geom_bar(stat="identity")
      + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) # fixes overlapping names
-     + labs(title = paste("Number Of Rides On", weekdays(as.Date(D_[1,"newDate"])), date), x = "station name")
+     + labs(title = paste("Number Of Rides On", weekdays(as.Date(D_[1,"newDate"])), date, "FIX THIS MESSAGE"), x = "station name")
     )
   }
   else if (visType == "Table") {
@@ -32,6 +45,8 @@ getMainBarGraph = function(D, date, order, visType) {
 # order dataframe based on user specified order 
 #
 orderBy = function(D, order) {
+  print(paste("setting order: ", head(D), order))
+  
   if (order == "alpha") {
     sorted <- D[order(D$stationname),]
     return(sorted)
@@ -52,10 +67,24 @@ orderBy = function(D, order) {
 
 
 #
-# filters dataframe based on date 
+# filters dataframe based on either one given day, or a range
 #
-filterByDate = function(D, date) {
-  return(D[D$newDate == date, ])
+filterByDate = function(D, date1, date2 = NULL) {
+  
+  print(paste("filtering dataset:", head(D), "by date:", date1, date2))
+  
+  if (is.null(date2)) {
+    return(D[D$newDate == date1, ])
+  }
+  else {
+    return(D[D$newDate >= date1 & D$newDate <= date2, ])
+  }
+}
+
+
+
+filterByDateRange = function(D, date1, date2) {
+  
 }
 
 
