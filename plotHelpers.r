@@ -13,24 +13,38 @@ getMainBarGraph = function(D, order, visType, dateInputMethod, date=NULL, dateRa
   }
   else if (dateInputMethod == "Date Range") {
     print("selected date range")
-    D_ <- orderBy(filterByDate(D, dateRange[1], dateRange[2]), order)
+    D_ <- filterByDate(D, dateRange[1], dateRange[2]) 
     # TODO fix label
   }
   else {
     print(paste("ERROR invalid date input: ", dateInputMethod))
   }
   
-  # prevent ggplot from sorting automatically
-  D_$stationname <- factor(D_$stationname, levels = D_$stationname)
+  
+  
   
   if (visType == "Bar Graph") {
-    (ggplot(
-      data=D_, 
-      aes(x=stationname, y=rides)) 
-     + geom_bar(stat="identity")
-     + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) # fixes overlapping names
-     + labs(title = paste("Number Of Rides On", weekdays(as.Date(D_[1,"newDate"])), date, "FIX THIS MESSAGE"), x = "station name")
-    )
+    if (dateInputMethod == "Single Day") {
+      # prevent ggplot from sorting automatically
+      D_$stationname <- factor(D_$stationname, levels = D_$stationname)
+      
+      (ggplot(
+        data=D_, 
+        aes(x=stationname, y=rides)) 
+       + geom_bar(stat="identity")
+       + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) # fixes overlapping names
+       + labs(title = paste("Number Of Rides On", weekdays(as.Date(D_[1,"newDate"])), date), x = "station name")
+      )
+    }
+    else if (dateInputMethod == "Date Range") {
+      (ggplot(D_, aes(fill=newDate, y=rides, x=stationname)) 
+        + geom_bar(position="stack", stat="identity")
+        + scale_fill_gradientn(colours = terrain.colors(17))
+        + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none") # fixes overlapping names
+        + labs(title = paste("Number Of Rides between", dateRange[1], " and ", dateRange[2]), x = "station name")
+      )
+    }
+    
   }
   else if (visType == "Table") {
     return(D_)
@@ -71,12 +85,14 @@ orderBy = function(D, order) {
 #
 filterByDate = function(D, date1, date2 = NULL) {
   
-  print(paste("filtering dataset:", head(D), "by date:", date1, date2))
+  # print(paste("filtering dataset:", head(D), "by date:", date1, date2))
   
   if (is.null(date2)) {
+    print("filtering by single date")
     return(D[D$newDate == date1, ])
   }
   else {
+    print(paste("filtering by dates:", date1, date2))
     return(D[D$newDate >= date1 & D$newDate <= date2, ])
   }
 }
