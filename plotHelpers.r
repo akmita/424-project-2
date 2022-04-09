@@ -93,7 +93,7 @@ filterByDate = function(D, date1, date2 = NULL) {
   }
   else {
     print(paste("filtering by dates:", date1, date2))
-    return(D[D$newDate >= date1 & D$newDate <= date2, ])
+    return(D[D$newDate == date1 | D$newDate == date2, ])
   }
 }
 
